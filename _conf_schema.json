@@ -1,0 +1,46 @@
+{
+    "auto_login": {
+        "description": "是否启用开启自动登录",
+        "hint": "每次启动插件的时候自动登录账号",
+        "type": "bool",
+        "default": false
+    },
+    "group_shenhe": {
+        "description": "审核群号",
+        "hint": "这里填写的为你接受图片审核的群号的地方",
+        "type": "list",
+        "default": []
+    },
+    "account": {
+        "description": "兽云祭账户",
+        "hint": "你注册的兽云祭账户信息",
+        "type": "string"
+    },
+    "password": {
+        "description": "兽云祭账户密码",
+        "hint": "你注册的兽云祭账户密码",
+        "type": "string"
+    },
+    "image_config": {
+        "description": "图片令牌配置项",
+        "type": "object",
+        "hint": "这里填写的是令牌模式所要用到的配置项，需要生成后手动填写，注意该令牌非唯一登录令牌",
+        "items": {
+            "token": {
+                "description": "令牌token",
+                "type": "string",
+                "hint": "你申请的令牌"
+            },
+            "token_user": {
+                "description": "令牌账户",
+                "type": "string",
+                "hint": "你自己生成的令牌账户"
+            },
+            "token_key": {
+                "description": "令牌密码",
+                "type": "string",
+                "hint": "你自己生成的令牌的密码"
+            }
+        }
+    }
+}
