@@ -19,7 +19,7 @@ from .fox import account_system, syj
     "astrbot_plugin_Furimg_Cloud",
     "huilongxiji",
     "兽云祭对接插件插件",
-    "1.0.1"
+    "1.0.2"
 )
 class FoxPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):   # , config: AstrBotConfig
@@ -104,7 +104,7 @@ class FoxPlugin(Star):
                 logger.error(f"读取到唯一登录令牌为：{account_system.token}")
 
     @filter.command("随机兽图")
-    async def fox_randox_furry(self, event: AstrMessageEvent):
+    async def fox_random_furry(self, event: AstrMessageEvent):
         """这个指令是随机获取兽图的指令"""
         logger.info("<兽云祭系统>[随机兽图:-->随机查询]: ")
         code, msg, json = await syj.random_data()
@@ -127,10 +127,9 @@ class FoxPlugin(Star):
                 """<缺少参数>
                 请携带参数使用哦
                 例如:
-                /{} 123  或  /{} 名称
-                “{}”后面的sid或者名称需要用空格隔开
+                /来只 123  或  /来只 名称
+                “来只”后面的sid或者名称需要用空格隔开
                 **空格此只能携带一个参数哦"""
-                .format("来只", "来只", "来只")
                 .replace(" ", "")
                 .replace("\t", "")
             )
@@ -202,16 +201,26 @@ class FoxPlugin(Star):
     @filter.command("兽云验证码")
     async def fox_chack_image(self, event: AstrMessageEvent):
         """获取一张验证码图片"""
-        chack_dir = str(plugin_config.DATA_DIR) + "/resources/验证码.jpg"
-        await account_system.check_image(img_path=str(chack_dir))
-        yield event.image_result(str(chack_dir))
+        if plugin_config.DATA_DIR is None:
+            yield event.plain_result("数据目录未初始化，无法获取验证码")
+            return
+
+        assert plugin_config.DATA_DIR is not None
+        check_path = plugin_config.DATA_DIR / "resources" / "验证码.jpg"
+        await account_system.check_image(img_path=str(check_path))
+        yield event.image_result(str(check_path))
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("兽云登录")
     async def fox_login(self, event: AstrMessageEvent):
         """兽云祭账户登录功能，流程式问答结构"""
         try:
-            chack_dir = str(plugin_config.DATA_DIR) + "/resources/验证码.jpg"
+            if plugin_config.DATA_DIR is None:
+                yield event.plain_result("数据目录未初始化，无法进行登录")
+                return
+
+            assert plugin_config.DATA_DIR is not None
+            check_path = plugin_config.DATA_DIR / "resources" / "验证码.jpg"
             yield event.plain_result("开始登录流程Loding~~~")
 
             @session_waiter(timeout=60, record_history_chains=False)
@@ -234,9 +243,9 @@ class FoxPlugin(Star):
                     return
 
                 if login_msg != "登录成功":
-                    await account_system.check_image(img_path=str(chack_dir))
+                    await account_system.check_image(img_path=str(check_path))
                     await event.send(event.plain_result(str(login_msg)))
-                    await event.send(event.image_result(str(chack_dir)))  # 发送回复，不能使用 yield
+                    await event.send(event.image_result(str(check_path)))  # 发送回复，不能使用 yield
                     return
 
                 controller.keep(timeout=60, reset_timeout=True) # 重置超时时间为 60s，如果不重置，则会继续之前的超时时间计时。
@@ -246,9 +255,9 @@ class FoxPlugin(Star):
                 if zd:
                     yield event.plain_result(zd)
                 else:
-                    yield event.plain_result("自动登录失败，请发送下列验证码\n如需退出请输入“退出”")
-                    await account_system.check_image(img_path=str(chack_dir))
-                    yield event.image_result(str(chack_dir))
+                    yield event.plain_result("自动登录失败，请发送下列验证码\n如需退出请输入退出二字")
+                    await account_system.check_image(img_path=str(check_path))
+                    yield event.image_result(str(check_path))
                     await empty_mention_waiter(event)
             except TimeoutError as _: # 当超时后，会话控制器会抛出 TimeoutError
                 yield event.plain_result("等待时间超过60秒，自动结束进程！")

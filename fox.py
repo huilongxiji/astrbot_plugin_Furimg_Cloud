@@ -1,4 +1,5 @@
-import os
+
+from pathlib import Path
 
 import httpx
 
@@ -18,7 +19,7 @@ from .config import (
 )
 
 
-class fox:
+class Fox:
     def __init__(self):
         self.random = SYJ_RANDOM
         self.random_name = SYJ_RANDOM_NAME
@@ -28,7 +29,7 @@ class fox:
         """随机兽图数据获取实现
         type: 0.设定 1.毛图 2.插画 留空则随机"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 data = await client.get(
                     url=self.random + type + f"&name={name}",
                     cookies=account_system.cookies_q
@@ -49,7 +50,7 @@ class fox:
     async def pictures_sid(self, sid: str) -> tuple:
         """指定sid数据获取"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 data = await client.get(
                     url=self.pictures_url + sid,
                     cookies=account_system.cookies_q
@@ -74,7 +75,7 @@ class fox:
     async def pictures_name(self, name: str) -> tuple:
         """指定名称数据获取"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 data = await client.get(
                     url=self.random_name + name,
                     cookies=account_system.cookies_q
@@ -122,27 +123,43 @@ class fox:
             Comp.Plain("======FurBot======\n更多功能请发送“兽云菜单”")
         ]
 
+    # async def API_Data(self, text: str, type: int) -> list:
+    #     """消息构建，总处理
+    #     type [0:随机搜索, 1:sid搜索, 2:名称搜索]
+    #     """
+    #     sid = await self.pictures_sid(text)
+    #     name = await self.pictures_name(text)
+    #     if type == 0 and sid:
+    #         return await self.goujian(sid,0)
+    #     elif type == 1 and sid:
+    #         return await self.goujian(sid,1)
+    #     elif type == 2 and name:
+    #         return await self.goujian(name,2)
+    #     else:
+    #         return [
+    #             Comp.Plain("消息构建错误")
+    #         ]
+
     async def API_Data(self, text: str, type: int) -> list:
         """消息构建，总处理
         type [0:随机搜索, 1:sid搜索, 2:名称搜索]
         """
-        sid = await self.pictures_sid(text)
-        name = await self.pictures_name(text)
-        if type == 0 and sid:
-            return await self.goujian(sid,0)
-        elif type == 1 and sid:
-            return await self.goujian(sid,1)
-        elif type == 2 and name:
-            return await self.goujian(name,2)
+        if type == 0:
+            data = await self.pictures_sid(text)
+            return await self.goujian(data, 0)
+        elif type == 1:
+            data = await self.pictures_sid(text)
+            return await self.goujian(data, 1)
+        elif type == 2:
+            data = await self.pictures_name(text)
+            return await self.goujian(data, 2)
         else:
-            return [
-                Comp.Plain("消息构建错误")
-            ]
+            return [Comp.Plain("无效的搜索类型")]
 
 class Account_System:
     def __init__(self):
         self.cookies_q = {}
-        self.dir_path = plugin_config.DATA_DIR
+        self.dir_path: Path | None = plugin_config.DATA_DIR
         self.account = None
         self.passwd = None
         self.token = None
@@ -154,25 +171,36 @@ class Account_System:
 
     async def read_token(self):
         """从插件数据路径加载token"""
-        dir = str(self.dir_path) + "/resources/syj_config/token"
-        if os.path.isfile(dir):
-            with open(dir, encoding="utf_8") as r:
+        if self.dir_path is None:
+            logger.warning("数据目录未初始化，无法读取token")
+            return
+
+        # 类型窄化：此时 self.dir_path 确定不是 None
+        assert self.dir_path is not None
+        token_file = self.dir_path / "resources" / "syj_config" / "token"
+        if token_file.is_file():
+            with open(token_file, encoding="utf_8") as r:
                 y = r.read().strip()
                 self.token = y
                 logger.warning(f"自动加载key成功:{y}")
 
     async def w_token(self, token):
         """更新令牌函数"""
-        dir = str(self.dir_path) + "/resources/syj_config/token"
-        with open(dir, "w", encoding="utf_8") as w:
+        if self.dir_path is None:
+            logger.warning("数据目录未初始化，无法写入token")
+            return
+
+        # 类型窄化：此时 self.dir_path 确定不是 None
+        assert self.dir_path is not None
+        token_file = self.dir_path / "resources" / "syj_config" / "token"
+        with open(token_file, "w", encoding="utf_8") as w:
             self.token = f"{token}"
             w.write(token)
-            w.close
 
     async def check_image(self, img_path):
         """获取兽云祭图片验证码"""
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 check = await client.get(url=CHECK, cookies=self.cookies_q)
                 try:
                     image = check.content
@@ -191,7 +219,7 @@ class Account_System:
     async def login_auto(self):
         """自动登录函数"""
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 a = await client.post(
                     url=LOGIN,
                     cookies=self.cookies_q,
@@ -231,7 +259,7 @@ class Account_System:
 
     async def login(self, key: str) -> str:
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 login_data = await client.post(
                     url=LOGIN,
                     cookies=self.cookies_q, data={
@@ -270,7 +298,7 @@ class Account_System:
         """登录令牌获取函数"""
         url = TKAPPLY if id == 1 else TKQUERY
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 token_data = await client.get(url, cookies=self.cookies_q)
         except Exception as e:
             logger.error(f"获取令牌失败！！{e}")
@@ -294,7 +322,7 @@ class Account_System:
                 logger.warning(f"兽云祭唯一登录令牌请求失败\nHTTP响应码:{token_data.status_code}")
                 return False
 
-syj = fox()
+syj = Fox()
 """兽云祭基础实现"""
 
 account_system = Account_System()

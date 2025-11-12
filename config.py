@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 SYJ_RANDOM = "https://cloud.foxtail.cn/api/function/random?type="
@@ -20,7 +19,8 @@ PLUGIN_VERSION = "1.0.1"
 PLUGIN_REPO = "https://github.com/GEMILUXVII/astrbot_plugin_Furimg_Cloud"
 
 # 路径常量
-PLUGIN_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+# 使用 resolve() 确保获取绝对路径并解析符号链接
+PLUGIN_DIR = Path(__file__).resolve().parent
 
 # DATA_DIR通过StarTools.get_data_dir动态获取
 # 这里只是定义一个占位变量，真正的目录会在初始化时设置
