@@ -19,7 +19,7 @@ from .fox import account_system, syj
     "astrbot_plugin_Furimg_Cloud",
     "huilongxiji",
     "兽云祭对接插件插件",
-    "1.0.2"
+    "1.0.3"
 )
 class FoxPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):   # , config: AstrBotConfig
@@ -95,7 +95,14 @@ class FoxPlugin(Star):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         await account_system.read_token()     # 自动加载token
         await account_system.read_config(config=self.config)    # 载入账户信息
+
         if self.config.get("auto_login", False):
+            # 检查账号密码是否已配置
+            if not account_system.account or not account_system.passwd:
+                logger.warning("未配置兽云祭账号或密码，跳过自动登录")
+                logger.warning("请在插件配置文件中填写 account 和 password 参数")
+                return
+
             zd = await account_system.login_auto()
             if zd:
                 logger.info("兽云祭账户自动登录成功")
@@ -124,14 +131,12 @@ class FoxPlugin(Star):
         message_str = event.message_str
         if message_str == "来只":
             yield event.plain_result(
-                """<缺少参数>
-                请携带参数使用哦
-                例如:
-                /来只 123  或  /来只 名称
-                “来只”后面的sid或者名称需要用空格隔开
-                **空格此只能携带一个参数哦"""
-                .replace(" ", "")
-                .replace("\t", "")
+                "<缺少参数>"
+                "请携带参数使用哦"
+                "例如:"
+                "/来只 123  或  /来只 名称"
+                "“来只”后面的sid或者名称需要用空格隔开"
+                "**空格此只能携带一个参数哦"
             )
             return
         pattern = r"^来只\s*(.*)$"     # rf"^来只\s*(.*?)(?:\s|$)"
@@ -217,6 +222,16 @@ class FoxPlugin(Star):
         try:
             if plugin_config.DATA_DIR is None:
                 yield event.plain_result("数据目录未初始化，无法进行登录")
+                return
+
+            # 检查账号密码是否已配置
+            if not account_system.account or not account_system.passwd:
+                yield event.plain_result(
+                    "❌ 未配置兽云祭账号或密码！\n"
+                    "请在插件配置文件中填写以下信息：\n"
+                    "- account: 兽云祭账户\n"
+                    "- password: 兽云祭账户密码"
+                )
                 return
 
             assert plugin_config.DATA_DIR is not None

@@ -218,6 +218,11 @@ class Account_System:
 
     async def login_auto(self):
         """自动登录函数"""
+        # 检查账号密码是否已配置
+        if not self.account or not self.passwd:
+            logger.warning("账号或密码未配置，无法进行自动登录")
+            return False
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 a = await client.post(
@@ -258,6 +263,11 @@ class Account_System:
                 return False
 
     async def login(self, key: str) -> str:
+        # 检查账号密码是否已配置
+        if not self.account or not self.passwd:
+            logger.warning("账号或密码未配置，无法进行登录")
+            return "账号或密码未配置，请在配置文件中填写"
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 login_data = await client.post(

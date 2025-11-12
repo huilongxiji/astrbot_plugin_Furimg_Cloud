@@ -15,7 +15,7 @@ TKQUERY = "https://cloud.foxtail.cn/api/account/tkquery"
 PLUGIN_NAME = "Furimg_Cloud"
 PLUGIN_AUTHOR = "huilongxiji"
 PLUGIN_DESC = "这个是兽云祭官方api对接插件，用来获取一张精选的furry图片，可以是毛毛照片也可以是兽兽插画或者设定图，该插件的所有图片均来自群友投稿"
-PLUGIN_VERSION = "1.0.1"
+PLUGIN_VERSION = "1.0.3"
 PLUGIN_REPO = "https://github.com/GEMILUXVII/astrbot_plugin_Furimg_Cloud"
 
 # 路径常量
