@@ -19,7 +19,7 @@ from .fox import account_system, syj
     "astrbot_plugin_Furimg_Cloud",
     "huilongxiji",
     "兽云祭对接插件插件",
-    "1.0.3"
+    "1.0.5"
 )
 class FoxPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):   # , config: AstrBotConfig
@@ -127,7 +127,6 @@ class FoxPlugin(Star):
     @filter.command("来只")
     async def fox_laizhi(self, event: AstrMessageEvent):
         """这个是来仅根据sid或者图片名称来获取图片的指令"""
-        logger.error("来只触发")
         message_str = event.message_str
         if message_str == "来只":
             yield event.plain_result(
