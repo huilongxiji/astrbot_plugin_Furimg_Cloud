@@ -29,7 +29,7 @@ class Fox:
         """随机兽图数据获取实现
         type: 0.设定 1.毛图 2.插画 留空则随机"""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=account_system.api_timeout) as client:
                 data = await client.get(
                     url=self.random + type + f"&name={name}",
                     cookies=account_system.cookies_q
@@ -50,7 +50,7 @@ class Fox:
     async def pictures_sid(self, sid: str) -> tuple:
         """指定sid数据获取"""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=account_system.api_timeout) as client:
                 data = await client.get(
                     url=self.pictures_url + sid,
                     cookies=account_system.cookies_q
@@ -75,7 +75,7 @@ class Fox:
     async def pictures_name(self, name: str) -> tuple:
         """指定名称数据获取"""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=account_system.api_timeout) as client:
                 data = await client.get(
                     url=self.random_name + name,
                     cookies=account_system.cookies_q
@@ -123,23 +123,6 @@ class Fox:
             Comp.Plain("======FurBot======\n更多功能请发送“兽云菜单”")
         ]
 
-    # async def API_Data(self, text: str, type: int) -> list:
-    #     """消息构建，总处理
-    #     type [0:随机搜索, 1:sid搜索, 2:名称搜索]
-    #     """
-    #     sid = await self.pictures_sid(text)
-    #     name = await self.pictures_name(text)
-    #     if type == 0 and sid:
-    #         return await self.goujian(sid,0)
-    #     elif type == 1 and sid:
-    #         return await self.goujian(sid,1)
-    #     elif type == 2 and name:
-    #         return await self.goujian(name,2)
-    #     else:
-    #         return [
-    #             Comp.Plain("消息构建错误")
-    #         ]
-
     async def API_Data(self, text: str, type: int) -> list:
         """消息构建，总处理
         type [0:随机搜索, 1:sid搜索, 2:名称搜索]
@@ -163,11 +146,28 @@ class Account_System:
         self.account = None
         self.passwd = None
         self.token = None
+        self.api_timeout = 30.0  # 默认超时时间
 
     async def read_config(self, config: AstrBotConfig):
         self.account = config.get("account", None)
         self.passwd = config.get("password", None)
-        return {"account": self.account, "password": self.passwd}
+
+        # 读取 API 超时配置，若不是合法数字则使用默认值
+        timeout_config = config.get("api_timeout", 30.0)
+        try:
+            timeout_value = float(timeout_config)
+            # 确保超时时间为正数
+            if timeout_value > 0:
+                self.api_timeout = timeout_value
+                logger.info(f"API超时时间设置为: {self.api_timeout}秒")
+            else:
+                logger.warning(f"API超时时间配置无效（{timeout_config}），必须为正数，使用默认值: 30.0秒")
+                self.api_timeout = 30.0
+        except (ValueError, TypeError):
+            logger.warning(f"API超时时间配置无效（{timeout_config}），使用默认值: 30.0秒")
+            self.api_timeout = 30.0
+
+        return {"account": self.account, "password": self.passwd, "api_timeout": self.api_timeout}
 
     async def read_token(self):
         """从插件数据路径加载token"""
@@ -200,7 +200,7 @@ class Account_System:
     async def check_image(self, img_path):
         """获取兽云祭图片验证码"""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.api_timeout) as client:
                 check = await client.get(url=CHECK, cookies=self.cookies_q)
                 try:
                     image = check.content
@@ -224,7 +224,7 @@ class Account_System:
             return False
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.api_timeout) as client:
                 a = await client.post(
                     url=LOGIN,
                     cookies=self.cookies_q,
@@ -269,7 +269,7 @@ class Account_System:
             return "账号或密码未配置，请在配置文件中填写"
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.api_timeout) as client:
                 login_data = await client.post(
                     url=LOGIN,
                     cookies=self.cookies_q, data={
@@ -308,7 +308,7 @@ class Account_System:
         """登录令牌获取函数"""
         url = TKAPPLY if id == 1 else TKQUERY
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.api_timeout) as client:
                 token_data = await client.get(url, cookies=self.cookies_q)
         except Exception as e:
             logger.error(f"获取令牌失败！！{e}")

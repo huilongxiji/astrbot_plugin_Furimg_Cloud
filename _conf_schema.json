@@ -5,6 +5,12 @@
         "type": "bool",
         "default": false
     },
+    "api_timeout": {
+        "description": "API请求超时时间（秒）",
+        "hint": "设置HTTP请求的超时时间，默认30秒，必须为正数",
+        "type": "number",
+        "default": 30.0
+    },
     "group_shenhe": {
         "description": "审核群号",
         "hint": "这里填写的为你接受图片审核的群号的地方",
