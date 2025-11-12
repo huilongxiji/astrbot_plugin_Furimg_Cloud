@@ -179,7 +179,7 @@ class Account_System:
                     key = check.cookies["PHPSESSID"]
                     self.cookies_q["PHPSESSID"] = key
                 except KeyError:
-                    logger.info("二次获取图片验证码,将不写入cookie")
+                    logger.warning("二次获取图片验证码,将不写入cookie")
                     key = None
             with open(img_path, "wb") as file:
                 file.write(image)
@@ -201,6 +201,14 @@ class Account_System:
                         "model": 1,
                         "token": self.token
                     })
+        except TimeoutError:
+            logger.error("登录API访问超时")
+            return False
+        except Exception as e:
+            logger.error(f"登录请求发送失败: {e}")
+            return False
+        else:
+            if a.status_code == 200:
                 data = a.json()
                 if data["code"] == "10000":
                     cookie = a.cookies
@@ -215,22 +223,30 @@ class Account_System:
                     logger.info("兽云祭账户重复登录")
                     return "客户端已登录"
                 else:
-                    logger.error(f"登录失败！！！\n{data['msg']}")
+                    logger.warning(f"自动登录失败！！！\n{data['msg']}")
                     return False
-        except Exception as e:
-            logger.error(f"登录请求发送失败: {e}")
-            return False
+            else:
+                logger.warning(f"自动登录请求异常， http 状态码: {a.status_code}")
+                return False
 
     async def login(self, key: str) -> str:
-        async with httpx.AsyncClient(timeout=None) as client:
-            login_data = await client.post(
-                url=LOGIN,
-                cookies=self.cookies_q, data={
-                    "account": self.account,
-                    "password": self.passwd,
-                    "model":0,
-                    "proving": key
-                })
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                login_data = await client.post(
+                    url=LOGIN,
+                    cookies=self.cookies_q, data={
+                        "account": self.account,
+                        "password": self.passwd,
+                        "model":0,
+                        "proving": key
+                    })
+        except TimeoutError:
+            logger.error("登录API访问超时")
+            return "登录API访问超时"
+        except Exception as e:
+            logger.error(f"登录请求发送失败: {e}")
+            return f"登录请求发送失败: {e}"
+        else:
             if login_data.status_code == 200:
                 data = login_data.json()
                 cookie = login_data.cookies
@@ -244,19 +260,24 @@ class Account_System:
                     return "登录成功"
                 else:
                     self.cookies_q = {}
-                    logger.error(f"兽云祭登录失败\n响应码:{data['code']}\n状态:{data['msg']}")
+                    logger.warning(f"兽云祭登录失败\n响应码:{data['code']}\n状态:{data['msg']}")
                     return f"响应码:{data['code']}\n状态:{data['msg']}"
             else:
-                logger.error(f"兽云祭登录API请求失败\nHTTP响应码:{login_data.status_code}")
-                return "请求失败"
+                logger.warning(f"兽云祭登录API请求失败\nHTTP响应码:{login_data.status_code}")
+                return "登录请求发送失败"
 
     async def login_token(self, id: int):
         """登录令牌获取函数"""
         url = TKAPPLY if id == 1 else TKQUERY
         try:
             async with httpx.AsyncClient(timeout=None) as client:
-                u = await client.get(url,cookies=self.cookies_q)
-                data = u.json()
+                token_data = await client.get(url, cookies=self.cookies_q)
+        except Exception as e:
+            logger.error(f"获取令牌失败！！{e}")
+            return False
+        else:
+            if token_data.status_code == 200:
+                data = token_data.json()
                 if data["code"] == "12000":
                     logger.info("唯一登录令牌重新获取")
                     return data["token"]
@@ -267,11 +288,11 @@ class Account_System:
                     logger.info("cookie丢失")
                     return False
                 else:
-                    logger.error(f"唯一登录令牌获取失败！！！{data['msg']}")
+                    logger.warning(f"唯一登录令牌获取失败！！！{data['msg']}")
                     return False
-        except Exception as e:
-            logger.error(f"获取令牌失败！！{e}")
-            return False
+            else:
+                logger.warning(f"兽云祭唯一登录令牌请求失败\nHTTP响应码:{token_data.status_code}")
+                return False
 
 syj = fox()
 """兽云祭基础实现"""

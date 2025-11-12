@@ -19,7 +19,7 @@ from .fox import account_system, syj
     "astrbot_plugin_Furimg_Cloud",
     "huilongxiji",
     "兽云祭对接插件插件",
-    "1.0.0"
+    "1.0.1"
 )
 class FoxPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):   # , config: AstrBotConfig
@@ -216,8 +216,7 @@ class FoxPlugin(Star):
 
             @session_waiter(timeout=60, record_history_chains=False)
             async def empty_mention_waiter(controller: SessionController, event: AstrMessageEvent):
-                user_msg = event.message_str # 用户发来的成语，假设是 "一马当先"
-
+                user_msg = event.message_str
 
                 if user_msg == "退出":   # 假设用户想主动退出，输入了 "退出"
                     await event.send(event.plain_result("已退出登录流程"))

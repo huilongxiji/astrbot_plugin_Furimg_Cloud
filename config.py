@@ -4,8 +4,8 @@ from pathlib import Path
 SYJ_RANDOM = "https://cloud.foxtail.cn/api/function/random?type="
 SYJ_RANDOM_NAME = "https://cloud.foxtail.cn/api/function/random?name="
 PICTURES_URL = "https://cloud.foxtail.cn/api/function/pictures?model=1&picture="
-# self.pulllist_url = "https://cloud.foxtail.cn/api/function/pulllist?type=0&name="
-# self.picture_url = "https://cloud.foxtail.cn/api/function/pullpic?model=1&picture="
+PULLLIST_URL = "https://cloud.foxtail.cn/api/function/pulllist?type=0&name="
+PICTURE_URL = "https://cloud.foxtail.cn/api/function/pullpic?model=1&picture="
 
 CHECK = "https://cloud.foxtail.cn/api/check"
 LOGIN = "https://cloud.foxtail.cn/api/account/login"
@@ -15,8 +15,8 @@ TKQUERY = "https://cloud.foxtail.cn/api/account/tkquery"
 # 插件信息
 PLUGIN_NAME = "Furimg_Cloud"
 PLUGIN_AUTHOR = "huilongxiji"
-PLUGIN_DESC = "这个是兽云祭官方api对接插件，用来获取一张精选的furry图片，可以是毛毛照片也可以是收受插画或者设定图，该插件的所有图片均来自群友投稿"
-PLUGIN_VERSION = "1.0.0"
+PLUGIN_DESC = "这个是兽云祭官方api对接插件，用来获取一张精选的furry图片，可以是毛毛照片也可以是兽兽插画或者设定图，该插件的所有图片均来自群友投稿"
+PLUGIN_VERSION = "1.0.1"
 PLUGIN_REPO = "https://github.com/GEMILUXVII/astrbot_plugin_Furimg_Cloud"
 
 # 路径常量
