@@ -42,7 +42,13 @@ class Fox:
             return (False, "随机搜索模式访问异常，请查看控制台输出", {})
         else:
             if data.status_code == 200:
-                return (True, "查询目标获取成功", data.json())
+                json = data.json()
+                if json["code"] == "20900":
+                    return (True, "查询目标获取成功", json)
+                elif json["code"] == "20901":
+                    return (False, "当前关键词暂无匹配图片", {})
+                else:
+                    return (False, str(json["msg"]), {})
             else:
                 logger.error(f"请求异常， http 状态码: {data.status_code}")
                 return (False, f"API 请求发送失败， http 状态码异常{data.status_code}", {})
@@ -66,6 +72,8 @@ class Fox:
                 json = data.json()
                 if json["code"] == "20600":
                     return (True, "查询目标获取成功", json)
+                elif json["code"] == "20601":
+                    return (False, "该sid暂无图片", {})
                 else:
                     return (False, str(json["msg"]), {})
             else:

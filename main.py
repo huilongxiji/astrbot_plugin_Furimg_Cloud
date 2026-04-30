@@ -22,7 +22,7 @@ from .fox import account_system, syj
     "1.0.5"
 )
 class FoxPlugin(Star):
-    def __init__(self, context: Context, config: AstrBotConfig):   # , config: AstrBotConfig
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
 
@@ -130,11 +130,11 @@ class FoxPlugin(Star):
         message_str = event.message_str
         if message_str == "来只":
             yield event.plain_result(
-                "<缺少参数>"
-                "请携带参数使用哦"
-                "例如:"
-                "/来只 123  或  /来只 名称"
-                "“来只”后面的sid或者名称需要用空格隔开"
+                "<缺少参数>\n"
+                "请携带参数使用哦\n"
+                "例如:\n"
+                "/来只 123  或  /来只 名称\n"
+                "“来只”后面的sid或者名称需要用空格隔开\n"
                 "**空格此只能携带一个参数哦"
             )
             return
@@ -171,7 +171,7 @@ class FoxPlugin(Star):
 
         if code:
             sid = str(json["picture"]["id"])
-            data = await syj.API_Data(sid,0)
+            data = await syj.API_Data(sid,2)
 
         yield event.chain_result(data)
 
@@ -197,7 +197,7 @@ class FoxPlugin(Star):
 
         if code:
             sid = str(json["picture"]["id"])
-            data = await syj.API_Data(sid,0)
+            data = await syj.API_Data(sid,2)
 
         yield event.chain_result(data)
 
