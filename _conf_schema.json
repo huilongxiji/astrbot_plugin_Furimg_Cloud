@@ -27,6 +27,11 @@
         "hint": "你注册的兽云祭账户密码",
         "type": "string"
     },
+    "mailbox": {
+        "description": "注册邮箱",
+        "hint": "你的邮箱",
+        "type": "string"
+    },
     "image_config": {
         "description": "图片令牌配置项",
         "type": "object",

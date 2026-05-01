@@ -171,7 +171,7 @@ class FoxPlugin(Star):
 
         if code:
             sid = str(json["picture"]["id"])
-            data = await syj.API_Data(sid,2)
+            data = await syj.API_Data(sid,0)
 
         yield event.chain_result(data)
 
@@ -197,7 +197,7 @@ class FoxPlugin(Star):
 
         if code:
             sid = str(json["picture"]["id"])
-            data = await syj.API_Data(sid,2)
+            data = await syj.API_Data(sid,0)
 
         yield event.chain_result(data)
 
@@ -229,7 +229,7 @@ class FoxPlugin(Star):
                     "❌ 未配置兽云祭账号或密码或邮箱！\n"
                     "请在插件配置文件中填写以下信息：\n"
                     "- account: 兽云祭账户\n"
-                    "- password: 兽云祭账户密码\n",
+                    "- password: 兽云祭账户密码\n"
                     "- mailbox: 你自己的邮箱"
                 )
                 return
