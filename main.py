@@ -19,7 +19,7 @@ from .fox import account_system, syj
     "astrbot_plugin_Furimg_Cloud",
     "huilongxiji",
     "兽云祭对接插件插件",
-    "1.0.5"
+    "1.1.5"
 )
 class FoxPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
