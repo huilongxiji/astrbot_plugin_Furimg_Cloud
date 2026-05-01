@@ -215,6 +215,66 @@ class FoxPlugin(Star):
         yield event.image_result(str(check_path))
 
     @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("兽云注册")
+    async def fox_zhuce(self, event: AstrMessageEvent):
+        '''用来注册兽云祭账号'''
+        try:
+            if plugin_config.DATA_DIR is None:
+                yield event.plain_result("数据目录未初始化，无法进行登录")
+                return
+
+            # 检查账号密码是否已配置
+            if not account_system.account or not account_system.passwd or not account_system.mailbox:
+                yield event.plain_result(
+                    "❌ 未配置兽云祭账号或密码或邮箱！\n"
+                    "请在插件配置文件中填写以下信息：\n"
+                    "- account: 兽云祭账户\n"
+                    "- password: 兽云祭账户密码\n",
+                    "- mailbox: 你自己的邮箱"
+                )
+                return
+
+            assert plugin_config.DATA_DIR is not None
+            yield event.plain_result("准备注册流程ing")
+            chack_dir = str(plugin_config.DATA_DIR) + "/resources/验证码.jpg"
+
+            @session_waiter(timeout=60, record_history_chains=False)
+            async def empty_mention_waiter(controller: SessionController, event: AstrMessageEvent):
+                user_msg = event.message_str
+
+                if user_msg == "退出":   # 假设用户想主动退出，输入了 "退出"
+                    await event.send(event.plain_result("已退出注册流程"))
+                    controller.stop()    # 停止会话控制器，会立即结束。
+                    return
+
+                if (register_msg := await account_system.register(str(user_msg))) == "注册成功":
+                    await event.send(event.plain_result("注册成功\n请使用“兽云登录”指令来装载账号吧"))
+                    controller.stop()    # 停止会话控制器，会立即结束。
+                    return
+
+                if register_msg != "注册成功":
+                    await account_system.check_image(img_path=str(chack_dir))
+                    await event.send(event.plain_result(str(register_msg)))
+                    await event.send(event.image_result(str(chack_dir)))
+                    return
+
+                controller.keep(timeout=60, reset_timeout=True) # 重置超时时间为 60s，如果不重置，则会继续之前的超时时间计时。
+
+            try:
+                yield event.plain_result("请发送下列验证码\n如需退出请输入“退出”")
+                await account_system.check_image(img_path=str(chack_dir))
+                yield event.image_result(str(chack_dir))
+                await empty_mention_waiter(event)
+            except TimeoutError as _: # 当超时后，会话控制器会抛出 TimeoutError
+                yield event.plain_result("等待时间超过60秒，自动结束进程！")
+            except Exception as e:
+                yield event.plain_result("发生错误，请联系管理员: " + str(e))
+            finally:
+                event.stop_event()
+        except Exception as e:
+            logger.error("注册流程异常: " + str(e))
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("兽云登录")
     async def fox_login(self, event: AstrMessageEvent):
         """兽云祭账户登录功能，流程式问答结构"""
@@ -288,8 +348,11 @@ class FoxPlugin(Star):
         """兽云祭登录令牌更新指令"""
         token = await account_system.login_token(1)
         if token:
-            await account_system.w_token(token)
-            yield event.plain_result("令牌更新完成")
+            status = await account_system.w_token(token)
+            if status:
+                yield event.plain_result("令牌更新完成")
+            else:
+                yield event.plain_result("缓存路径加载失败，请重启")
         else:
             yield event.plain_result("令牌更新失败，请检查控制台输出")
 

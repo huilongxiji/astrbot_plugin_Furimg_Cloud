@@ -6,6 +6,7 @@ PICTURES_URL = "https://cloud.foxtail.cn/api/function/pictures?model=1&picture="
 PULLLIST_URL = "https://cloud.foxtail.cn/api/function/pulllist?type=0&name="
 PICTURE_URL = "https://cloud.foxtail.cn/api/function/pullpic?model=1&picture="
 
+REGISTER = "https://cloud.foxtail.cn/api/account/register"
 CHECK = "https://cloud.foxtail.cn/api/check"
 LOGIN = "https://cloud.foxtail.cn/api/account/login"
 TKAPPLY = "https://cloud.foxtail.cn/api/account/tkapply"
@@ -24,5 +25,5 @@ PLUGIN_DIR = Path(__file__).resolve().parent
 
 # DATA_DIR通过StarTools.get_data_dir动态获取
 # 这里只是定义一个占位变量，真正的目录会在初始化时设置
-# 正确的数据目录应该是：data/plugin_data/cloudrank
+# 正确的数据目录应该是：data/plugin_data/Furimg_Cloud
 DATA_DIR = None  # 由主模块初始化

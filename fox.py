@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import httpx
+import os
 
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
@@ -9,6 +10,7 @@ from astrbot.core import AstrBotConfig
 
 from . import config as plugin_config
 from .config import (
+    REGISTER,
     CHECK,
     LOGIN,
     PICTURES_URL,
@@ -153,12 +155,19 @@ class Account_System:
         self.dir_path: Path | None = plugin_config.DATA_DIR
         self.account = None
         self.passwd = None
+        self.mailbox = None
         self.token = None
         self.api_timeout = 30.0  # 默认超时时间
+
+    def path_temp(self):
+        if self.dir_path == None:
+            self.dir_path = plugin_config.DATA_DIR
+        return self.dir_path
 
     async def read_config(self, config: AstrBotConfig):
         self.account = config.get("account", None)
         self.passwd = config.get("password", None)
+        self.mailbox = config.get("mailbox", None)
 
         # 读取 API 超时配置，若不是合法数字则使用默认值
         timeout_config = config.get("api_timeout", 30.0)
@@ -175,13 +184,13 @@ class Account_System:
             logger.warning(f"API超时时间配置无效（{timeout_config}），使用默认值: 30.0秒")
             self.api_timeout = 30.0
 
-        return {"account": self.account, "password": self.passwd, "api_timeout": self.api_timeout}
+        return {"account": self.account, "password": self.passwd, "mailbox": self.mailbox}
 
     async def read_token(self):
         """从插件数据路径加载token"""
         if self.dir_path is None:
             logger.warning("数据目录未初始化，无法读取token")
-            return
+            self.path_temp()
 
         # 类型窄化：此时 self.dir_path 确定不是 None
         assert self.dir_path is not None
@@ -196,14 +205,46 @@ class Account_System:
         """更新令牌函数"""
         if self.dir_path is None:
             logger.warning("数据目录未初始化，无法写入token")
-            return
+            self.path_temp()
 
         # 类型窄化：此时 self.dir_path 确定不是 None
         assert self.dir_path is not None
         token_file = self.dir_path / "resources" / "syj_config" / "token"
-        with open(token_file, "w", encoding="utf_8") as w:
-            self.token = f"{token}"
-            w.write(token)
+
+        # 获取上一级文件夹
+        parent_folder = os.path.dirname(token_file)
+        if os.path.isdir(parent_folder):
+            with open(token_file, "w", encoding="utf_8") as w:
+                self.token = f"{token}"
+                w.write(token)
+            return True
+        else:
+            logger.error("token写入文件失败，缓存路径未加载成功，请重启程序")
+            return False
+
+    async def register(self, proving):
+        """调用注册接口"""
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                register = await client.post(
+                    url=REGISTER,
+                    cookies=self.cookies_q,
+                    data={
+                        "account": self.account,
+                        "password": self.passwd,
+                        "mailbox": self.mailbox,
+                        "proving": str(proving)
+                    })
+                if register.status_code == 200:
+                    data = register.json()
+                    print(data)
+                    if data["code"] == "10100":
+                        return "注册成功"
+                    return data["msg"]
+
+        except Exception as e:
+            logger.error(f"注册接口调用异常: {str(e)}")
+            return False
 
     async def check_image(self, img_path):
         """获取兽云祭图片验证码"""
