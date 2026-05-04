@@ -1,8 +1,10 @@
-
+import asyncio
+import json
+import os
+import shutil
 from pathlib import Path
 
 import httpx
-import os
 
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
@@ -27,14 +29,14 @@ class Fox:
         self.random_name = SYJ_RANDOM_NAME
         self.pictures_url = PICTURES_URL
 
-    async def random_data(self, type: str = "", name = ""):
+    async def random_data(self, type: str = "", name=""):
         """随机兽图数据获取实现
         type: 0.设定 1.毛图 2.插画 留空则随机"""
         try:
             async with httpx.AsyncClient(timeout=account_system.api_timeout) as client:
                 data = await client.get(
                     url=self.random + type + f"&name={name}",
-                    cookies=account_system.cookies_q
+                    cookies=account_system.cookies_q,
                 )
         except TimeoutError:
             logger.error("随机搜索模式访问超时")
@@ -121,16 +123,14 @@ class Fox:
         url = json["url"]
         _type = type_data[str(type)]
         return [
-            Comp.Plain(f"""======毛毛图鉴======
-                        名称: {name}
-                        SID: {sid}
-                        搜索方式: 【{_type}】
-                        留言: {suggest}"""
-
-                        .replace(" ", "")
-                        .replace("\t", "")),
-            Comp.Image.fromURL(url), # 从 URL 发送图片
-            Comp.Plain("======FurBot======\n更多功能请发送“兽云菜单”")
+            Comp.Plain("======毛毛图鉴======\n"),
+            Comp.Plain(f"名称: {name}\n"),
+            Comp.Plain(f"SID: {sid}\n"),
+            Comp.Plain(f"搜索方式: 【{_type}】\n"),
+            Comp.Plain(f"留言: {suggest}\n"),
+            Comp.Image.fromURL(url),  # 从 URL 发送图片
+            Comp.Plain("======FurBot======\n"),
+            Comp.Plain("更多功能请发送“兽云菜单”"),
         ]
 
     async def API_Data(self, text: str, type: int) -> list:
@@ -148,6 +148,99 @@ class Fox:
             return await self.goujian(data, 2)
         else:
             return [Comp.Plain("无效的搜索类型")]
+
+class Image_Upload:
+    def __init__(self):
+        self._upload_lock = asyncio.Lock()
+
+    async def save(self, data: dict) -> bool:
+        """
+        投稿数据保存方式
+        """
+        data_dir: Path | None = plugin_config.DATA_DIR
+        if data_dir is None:
+            logger.error("数据保存功能异常，数据路径未初始化")
+            return False
+
+        src_raw = data.get("path")
+        if not src_raw:
+            logger.error("数据保存功能异常，图片数据路径为空")
+            return False
+        src = Path(src_raw)
+        if not src.is_file():
+            logger.error(f"数据保存功能异常，源图片不存在 {src}")
+            return False
+
+        ext = src.suffix.lower() or ".jpg"
+
+        upload_root = data_dir / "resources" / "upload"
+        user_data_dir = upload_root / "user_data"
+        images_dir = upload_root / "images"
+
+        async with self._upload_lock:
+            try:
+                user_data_dir.mkdir(parents=True, exist_ok=True)
+                images_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                logger.error(f"数据保存功能异常：创建上传目录异常 {e}")
+                return False
+
+            existing_ids: list[int] = []
+            for p in user_data_dir.glob("*.json"):
+                if p.stem.isdigit():
+                    existing_ids.append(int(p.stem))
+            next_id = (max(existing_ids) + 1) if existing_ids else 1
+
+            dst_image = images_dir / f"{next_id}{ext}"
+            dst_json = user_data_dir / f"{next_id}.json"
+
+            # Defensive: if a file with this id somehow already exists, bump
+            # forward until we find a free pair. Should not normally fire
+            # because of the scan above, but protects against orphan images.
+            while dst_image.exists() or dst_json.exists():
+                next_id += 1
+                dst_image = images_dir / f"{next_id}{ext}"
+                dst_json = user_data_dir / f"{next_id}.json"
+
+            try:
+                rel_image = dst_image.relative_to(data_dir).as_posix()
+            except ValueError as e:
+                logger.error(f"图片保存失败：无法计算相对路径 {e}")
+                return False
+
+            payload = dict(data)
+            payload["id"] = next_id
+            payload["path"] = rel_image
+            payload["code"] = 0
+
+            image_moved = False
+            json_written = False
+            try:
+                shutil.move(str(src), str(dst_image))
+                image_moved = True
+                dst_json.write_text(
+                    json.dumps(payload, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                json_written = True
+            except Exception as e:
+                logger.error(f"用户上传数据存储过程异常: {e}")
+                if image_moved and dst_image.exists():
+                    try:
+                        dst_image.unlink()
+                    except Exception as cleanup_err:
+                        logger.warning(f"清理图片失败: {cleanup_err}")
+                if json_written and dst_json.exists():
+                    try:
+                        dst_json.unlink()
+                    except Exception as cleanup_err:
+                        logger.warning(f"清理 JSON 失败: {cleanup_err}")
+                return False
+
+        logger.info(
+            f"兽云祭投稿数据已保存：id={next_id} json={dst_json} image={dst_image}"
+        )
+        return True
 
 class Account_System:
     def __init__(self):
@@ -178,18 +271,26 @@ class Account_System:
                 self.api_timeout = timeout_value
                 logger.info(f"API超时时间设置为: {self.api_timeout}秒")
             else:
-                logger.warning(f"API超时时间配置无效（{timeout_config}），必须为正数，使用默认值: 30.0秒")
+                logger.warning(
+                    f"API超时时间配置无效（{timeout_config}），必须为正数，使用默认值: 30.0秒"
+                )
                 self.api_timeout = 30.0
         except (ValueError, TypeError):
-            logger.warning(f"API超时时间配置无效（{timeout_config}），使用默认值: 30.0秒")
+            logger.warning(
+                f"API超时时间配置无效（{timeout_config}），使用默认值: 30.0秒"
+            )
             self.api_timeout = 30.0
 
-        return {"account": self.account, "password": self.passwd, "mailbox": self.mailbox}
+        return {
+            "account": self.account,
+            "password": self.passwd,
+            "mailbox": self.mailbox,
+        }
 
     async def read_token(self):
         """从插件数据路径加载token"""
         if self.dir_path is None:
-            logger.warning("数据目录未初始化，无法读取token")
+            logger.warning("正在初始化token的数据路径")
             self.path_temp()
 
         # 类型窄化：此时 self.dir_path 确定不是 None
@@ -233,8 +334,9 @@ class Account_System:
                         "account": self.account,
                         "password": self.passwd,
                         "mailbox": self.mailbox,
-                        "proving": str(proving)
-                    })
+                        "proving": str(proving),
+                    },
+                )
                 if register.status_code == 200:
                     data = register.json()
                     print(data)
@@ -281,8 +383,9 @@ class Account_System:
                         "account": self.account,
                         "password": self.passwd,
                         "model": 1,
-                        "token": self.token
-                    })
+                        "token": self.token,
+                    },
+                )
         except TimeoutError:
             logger.error("登录API访问超时")
             return False
@@ -298,7 +401,7 @@ class Account_System:
                     self.cookies_q = {
                         "Token": cookie["Token"],
                         "PHPSESSID": cookie["PHPSESSID"],
-                        "User": cookie["User"]
+                        "User": cookie["User"],
                     }
                     return "登录成功"
                 elif data["code"] == "10020":
@@ -321,12 +424,14 @@ class Account_System:
             async with httpx.AsyncClient(timeout=self.api_timeout) as client:
                 login_data = await client.post(
                     url=LOGIN,
-                    cookies=self.cookies_q, data={
+                    cookies=self.cookies_q,
+                    data={
                         "account": self.account,
                         "password": self.passwd,
-                        "model":0,
-                        "proving": key
-                    })
+                        "model": 0,
+                        "proving": key,
+                    },
+                )
         except TimeoutError:
             logger.error("登录API访问超时")
             return "登录API访问超时"
@@ -342,15 +447,19 @@ class Account_System:
                     self.cookies_q = {
                         "Token": cookie["Token"],
                         "PHPSESSID": cookie["PHPSESSID"],
-                        "User": cookie["User"]
+                        "User": cookie["User"],
                     }
                     return "登录成功"
                 else:
                     self.cookies_q = {}
-                    logger.warning(f"兽云祭登录失败\n响应码:{data['code']}\n状态:{data['msg']}")
+                    logger.warning(
+                        f"兽云祭登录失败\n响应码:{data['code']}\n状态:{data['msg']}"
+                    )
                     return f"响应码:{data['code']}\n状态:{data['msg']}"
             else:
-                logger.warning(f"兽云祭登录API请求失败\nHTTP响应码:{login_data.status_code}")
+                logger.warning(
+                    f"兽云祭登录API请求失败\nHTTP响应码:{login_data.status_code}"
+                )
                 return "登录请求发送失败"
 
     async def login_token(self, id: int):
@@ -378,11 +487,17 @@ class Account_System:
                     logger.warning(f"唯一登录令牌获取失败！！！{data['msg']}")
                     return False
             else:
-                logger.warning(f"兽云祭唯一登录令牌请求失败\nHTTP响应码:{token_data.status_code}")
+                logger.warning(
+                    f"兽云祭唯一登录令牌请求失败\nHTTP响应码:{token_data.status_code}"
+                )
                 return False
+
 
 syj = Fox()
 """兽云祭基础实现"""
 
 account_system = Account_System()
 """账户管理系统实现"""
+
+image_upload = Image_Upload()
+"""图片上传落盘实现（持有跨调用共享的 asyncio.Lock，必须以单例使用）"""

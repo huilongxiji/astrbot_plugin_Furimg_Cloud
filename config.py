@@ -16,7 +16,7 @@ TKQUERY = "https://cloud.foxtail.cn/api/account/tkquery"
 PLUGIN_NAME = "Furimg_Cloud"
 PLUGIN_AUTHOR = "huilongxiji"
 PLUGIN_DESC = "这个是兽云祭官方api对接插件，用来获取一张精选的furry图片，可以是毛毛照片也可以是兽兽插画或者设定图，该插件的所有图片均来自群友投稿"
-PLUGIN_VERSION = "1.1.5"
+PLUGIN_VERSION = "1.2.0"
 PLUGIN_REPO = "https://github.com/GEMILUXVII/astrbot_plugin_Furimg_Cloud"
 
 # 路径常量
@@ -26,4 +26,4 @@ PLUGIN_DIR = Path(__file__).resolve().parent
 # DATA_DIR通过StarTools.get_data_dir动态获取
 # 这里只是定义一个占位变量，真正的目录会在初始化时设置
 # 正确的数据目录应该是：data/plugin_data/Furimg_Cloud
-DATA_DIR = None  # 由主模块初始化
+DATA_DIR: Path | None = None  # 由主模块初始化
