@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -12,14 +13,14 @@ from astrbot.core.utils.session_waiter import (
 )
 
 from . import config as plugin_config
-from .fox import account_system, syj, image_upload
+from .fox import account_system, syj, I_U_D_P
 
 
 @register(
     "astrbot_plugin_Furimg_Cloud",
     "huilongxiji",
     "兽云祭对接插件插件",
-    "1.2.0"
+    "1.3.0"
 )
 class FoxPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -205,6 +206,9 @@ class FoxPlugin(Star):
     @filter.command("兽云验证码")
     async def fox_chack_image(self, event: AstrMessageEvent):
         """获取一张验证码图片"""
+        if not await self._is_audit_group(event):
+            yield event.plain_result("当前群聊无权限使用此指令")
+            return
         if plugin_config.DATA_DIR is None:
             yield event.plain_result("数据目录未初始化，无法获取验证码")
             return
@@ -218,6 +222,9 @@ class FoxPlugin(Star):
     @filter.command("兽云注册")
     async def fox_zhuce(self, event: AstrMessageEvent):
         """用来注册兽云祭账号"""
+        if not await self._is_audit_group(event):
+            yield event.plain_result("当前群聊无权限使用此指令")
+            return
         try:
             if plugin_config.DATA_DIR is None:
                 yield event.plain_result("数据目录未初始化，无法进行登录")
@@ -291,6 +298,9 @@ class FoxPlugin(Star):
     @filter.command("兽云登录")
     async def fox_login(self, event: AstrMessageEvent):
         """兽云祭账户登录功能，流程式问答结构"""
+        if not await self._is_audit_group(event):
+            yield event.plain_result("当前群聊无权限使用此指令")
+            return
         try:
             if plugin_config.DATA_DIR is None:
                 yield event.plain_result("数据目录未初始化，无法进行登录")
@@ -364,7 +374,7 @@ class FoxPlugin(Star):
             except TimeoutError as _:  # 当超时后，会话控制器会抛出 TimeoutError
                 yield event.plain_result("等待时间超过60秒，自动结束进程！")
             except Exception as e:
-                yield event.plain_result("发生错误，请联系管理员: " + str(e))
+                yield event.plain_result("发生错误，请联系开发者: " + str(e))
             finally:
                 event.stop_event()
         except Exception as e:
@@ -374,6 +384,9 @@ class FoxPlugin(Star):
     @filter.command("兽云更新登录令牌")
     async def fox_updata_token(self, event: AstrMessageEvent):
         """兽云祭登录令牌更新指令"""
+        if not await self._is_audit_group(event):
+            yield event.plain_result("当前群聊无权限使用此指令")
+            return
         token = await account_system.login_token(1)
         if token:
             status = await account_system.w_token(token)
@@ -384,7 +397,6 @@ class FoxPlugin(Star):
         else:
             yield event.plain_result("令牌更新失败，请检查控制台输出")
 
-    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("兽云上传")
     async def fox_upload_image(self, event: AstrMessageEvent):
         """兽云祭图片上传"""
@@ -411,9 +423,7 @@ class FoxPlugin(Star):
                 yield event.plain_result("未检测到登录状态")
                 return
 
-            yield event.plain_result(
-                "开始投稿流程，可随时发送「退出」结束问答。"
-            )
+            yield event.plain_result("开始投稿流程，可随时发送「退出」结束问答。")
 
             fox_upload_data: dict[str, str | None] = {
                 "name": None,
@@ -469,7 +479,7 @@ class FoxPlugin(Star):
                 data: dict[str, str | None],
             ) -> None:
                 """提交上传并返回状态"""
-                status = await image_upload.save(data=data)
+                status = await I_U_D_P.save(data=data)
                 if status:
                     await ev.send(ev.plain_result("上传成功，感谢投稿！"))
                 else:
@@ -685,11 +695,255 @@ class FoxPlugin(Star):
                     f"等待时间超过 {sess_timeout} 秒，上传流程已自动结束。"
                 )
             except Exception as e:
-                yield event.plain_result("发生错误，请联系管理员: " + str(e))
+                yield event.plain_result("发生错误，请联系开发者: " + str(e))
             finally:
                 event.stop_event()
         except Exception as e:
             logger.error("图片上传功能异常: " + str(e))
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("兽云本地审核")
+    async def fox_shenhe(self, event: AstrMessageEvent):
+        """兽云祭本地投稿审核功能，用于处理投稿数据"""
+        if not await self._is_audit_group(event):
+            yield event.plain_result("当前群聊无权限使用此指令")
+            return
+        try:
+            data_dir: Path | None = plugin_config.DATA_DIR
+            if data_dir is None:
+                yield event.plain_result("数据目录未初始化，无法整理审核数据")
+                return
+
+            # 检查账号密码是否已配置
+            if not account_system.account or not account_system.passwd:
+                yield event.plain_result(
+                    "未配置兽云祭账号或密码！\n"
+                    "请在插件配置文件中填写以下信息：\n"
+                    "- account: 兽云祭账户\n"
+                    "- password: 兽云祭账户密码"
+                )
+                return
+
+            # 检查账户登录状态
+            ckq = account_system.cookies_q
+            if ckq == {}:
+                logger.warning("触发审核时未检测到登录状态")
+                yield event.plain_result("未检测到登录状态")
+                return
+
+            user_data_dir = data_dir / "resources" / "upload" / "user_data"
+
+            sess_timeout = 60
+            max_retries = 3
+            current_idx = [0]
+            retry_count = [0]
+            pending_files: list[Path] = []
+            type_labels = ["设定图", "毛图", "插画"]
+
+            # Scan once at start; new uploads added during this session are
+            # intentionally not picked up to keep behavior predictable.
+            for p in sorted(user_data_dir.glob("*.json")):
+                if not p.stem.isdigit():
+                    continue
+                try:
+                    payload_probe = json.loads(p.read_text(encoding="utf-8"))
+                except Exception as e:
+                    logger.warning(f"审核扫描跳过 {p.name}: {e}")
+                    continue
+                if payload_probe.get("code") == 0:
+                    pending_files.append(p)
+            pending_files.sort(key=lambda fp: int(fp.stem))
+
+            if not pending_files:
+                yield event.plain_result("暂无待审核投稿。")
+                return
+
+            def load_payload(fp: Path) -> dict | None:
+                try:
+                    return json.loads(fp.read_text(encoding="utf-8"))
+                except Exception as e:
+                    logger.warning(f"审核读取 {fp.name} 失败: {e}")
+                    return None
+
+            def write_payload(fp: Path, payload: dict) -> bool:
+                try:
+                    fp.write_text(
+                        json.dumps(payload, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    return True
+                except Exception as e:
+                    logger.error(f"审核回写 {fp.name} 失败: {e}")
+                    return False
+
+            def build_preview_chain(payload: dict, idx: int, total: int) -> list:
+                t_raw = payload.get("type")
+                try:
+                    t_label = type_labels[int(str(t_raw or "0"))]
+                except (ValueError, IndexError):
+                    t_label = "未知"
+                suggest_raw = payload.get("suggest")
+                suggest_display = (
+                    "无"
+                    if not str(suggest_raw or "").strip()
+                    else str(suggest_raw).strip()
+                )
+                img_abs = str(data_dir / str(payload.get("path") or ""))
+                return [
+                    Comp.Plain(f"待审核 ({idx + 1}/{total})\n"),
+                    Comp.Plain(f"ID: {payload.get('id')}\n"),
+                    Comp.Plain(f"投稿类型: {t_label}\n"),
+                    Comp.Plain(f"设定名称: {payload.get('name') or ''}\n"),
+                    Comp.Plain(f"留言: {suggest_display}\n"),
+                    Comp.Image.fromFileSystem(img_abs),
+                ]
+
+            async def advance_or_finish(
+                controller: SessionController, ev: AstrMessageEvent
+            ) -> None:
+                """Show the next pending entry or end the session."""
+                while current_idx[0] < len(pending_files):
+                    fp = pending_files[current_idx[0]]
+                    payload = load_payload(fp)
+                    if payload is None:
+                        await ev.send(ev.plain_result(f"{fp.name} 读取异常，已跳过"))
+                        current_idx[0] += 1
+                        continue
+                    await ev.send(
+                        ev.chain_result(
+                            build_preview_chain(
+                                payload, current_idx[0], len(pending_files)
+                            )
+                        )
+                    )
+                    await ev.send(
+                        ev.plain_result(
+                            "请回复「同意」或「拒绝」处理本条（「退出」结束）。"
+                        )
+                    )
+                    retry_count[0] = 0
+                    controller.keep(timeout=sess_timeout, reset_timeout=True)
+                    return
+                await ev.send(ev.plain_result("审核完毕，没有更多待审核投稿。"))
+                controller.stop()
+
+            yield event.plain_result(
+                f"开始审核流程（共 {len(pending_files)} 条待审核），"
+                "可随时发送「退出」结束。"
+            )
+
+            # Find the first valid entry to display before the waiter starts.
+            # while-else: if every candidate fails to load, the else branch
+            # exits the command without ever entering the waiter.
+            while current_idx[0] < len(pending_files):
+                fp = pending_files[current_idx[0]]
+                first = load_payload(fp)
+                if first is None:
+                    yield event.plain_result(f"{fp.name} 读取异常，已跳过")
+                    current_idx[0] += 1
+                    continue
+                yield event.chain_result(
+                    build_preview_chain(first, current_idx[0], len(pending_files))
+                )
+                yield event.plain_result(
+                    "请回复「同意」或「拒绝」处理本条（「退出」结束）。"
+                )
+                break
+            else:
+                yield event.plain_result("没有可用的待审核投稿。")
+                return
+
+            @session_waiter(timeout=sess_timeout, record_history_chains=False)
+            async def shenhe_waiter(
+                controller: SessionController, event: AstrMessageEvent
+            ):
+                msg = (event.message_str or "").strip()
+
+                if msg == "退出":
+                    await event.send(event.plain_result("已退出审核流程"))
+                    controller.stop()
+                    return
+
+                if msg not in ("同意", "拒绝"):
+                    retry_count[0] += 1
+                    if retry_count[0] >= max_retries:
+                        await event.send(
+                            event.plain_result(
+                                f"已连续错误超过 {max_retries} 次，已退出审核流程。"
+                            )
+                        )
+                        controller.stop()
+                        return
+                    left = max_retries - retry_count[0]
+                    await event.send(
+                        event.plain_result(
+                            f"请回复「同意」或「拒绝」，还剩 {left} 次机会。"
+                        )
+                    )
+                    controller.keep(timeout=sess_timeout, reset_timeout=True)
+                    return
+
+                fp = pending_files[current_idx[0]]
+                payload = load_payload(fp)
+                if payload is None:
+                    await event.send(event.plain_result(f"{fp.name} 读取异常，已跳过"))
+                else:
+                    # Only persist when the entry's state actually changed:
+                    # 同意 + image_upload success -> code=1, write back
+                    # 同意 + image_upload failed  -> keep code=0, no write
+                    #                                (entry resurfaces next session)
+                    # 拒绝                         -> code=2, write back
+                    should_persist = False
+                    if msg == "同意":
+                        try:
+                            success, display = await account_system.image_upload(
+                                data=payload
+                            )
+                        except Exception as e:
+                            logger.error(f"image_upload 调用异常: {e}")
+                            success, display = False, f"提交时发生异常: {e}"
+                        await event.send(event.plain_result(display or "已处理该投稿"))
+                        if success:
+                            payload["code"] = 1
+                            should_persist = True
+                    else:
+                        await event.send(event.plain_result("已拒绝该投稿"))
+                        payload["code"] = 2
+                        should_persist = True
+
+                    if should_persist and not write_payload(fp, payload):
+                        await event.send(
+                            event.plain_result(
+                                f"状态保存失败：{fp.name}（请检查磁盘权限）"
+                            )
+                        )
+
+                current_idx[0] += 1
+                await advance_or_finish(controller, event)
+
+            try:
+                await shenhe_waiter(event)
+            except TimeoutError:
+                yield event.plain_result(
+                    f"等待时间超过 {sess_timeout} 秒，自动结束审核流程。"
+                )
+            except Exception as e:
+                yield event.plain_result("发生错误，请联系开发者反馈错误: " + str(e))
+            finally:
+                event.stop_event()
+        except Exception as e:
+            logger.error("审核流程出错: " + str(e))
+
+    async def _is_audit_group(self, event: AstrMessageEvent) -> bool:
+        """事件是否来自配置中的审核群（group_shenhe）。
+
+        私聊一律不视为审核群；group_shenhe 为空时也一律拒绝（强制要求显式
+        配置可信任的群，避免新装环境下敏感命令被默认放开）。
+        """
+        if event.is_private_chat():
+            return False
+        audit_groups = [str(g) for g in (self.config.get("group_shenhe", []) or [])]
+        return str(event.get_group_id() or "") in audit_groups
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""

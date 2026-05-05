@@ -2,8 +2,10 @@ import asyncio
 import json
 import os
 import shutil
+from mimetypes import guess_type
 from pathlib import Path
 
+import aiofiles
 import httpx
 
 import astrbot.api.message_components as Comp
@@ -20,6 +22,7 @@ from .config import (
     SYJ_RANDOM_NAME,
     TKAPPLY,
     TKQUERY,
+    UPLOAD_URL,
 )
 
 
@@ -129,8 +132,8 @@ class Fox:
             Comp.Plain(f"搜索方式: 【{_type}】\n"),
             Comp.Plain(f"留言: {suggest}\n"),
             Comp.Image.fromURL(url),  # 从 URL 发送图片
-            Comp.Plain("======FurBot======\n"),
-            Comp.Plain("更多功能请发送“兽云菜单”"),
+            Comp.Plain("======FurBot======"),
+            # Comp.Plain("更多功能请发送“兽云菜单”"),
         ]
 
     async def API_Data(self, text: str, type: int) -> list:
@@ -149,7 +152,8 @@ class Fox:
         else:
             return [Comp.Plain("无效的搜索类型")]
 
-class Image_Upload:
+
+class Image_Upload_Data_Process:
     def __init__(self):
         self._upload_lock = asyncio.Lock()
 
@@ -241,6 +245,7 @@ class Image_Upload:
             f"兽云祭投稿数据已保存：id={next_id} json={dst_json} image={dst_image}"
         )
         return True
+
 
 class Account_System:
     def __init__(self):
@@ -492,6 +497,64 @@ class Account_System:
                 )
                 return False
 
+    async def image_upload(self, data: dict) -> tuple[bool, str]:
+        """图片上传函数
+
+        Returns:
+            (success, message): success is True only when the API responds
+            with HTTP 200 and a body code of "20000". All other paths
+            (timeout, network error, non-200, business code != 20000) return
+            (False, message). The caller must use this flag to decide whether
+            to advance the local entry's state.
+        """
+        data_dir: Path | None = plugin_config.DATA_DIR
+        if data_dir is None:
+            logger.error("数据保存路径读取异常，数据路径未初始化")
+            return False, "无法读取数据存储路径，数据路径未初始化"
+
+        async with aiofiles.open(data_dir / str(data["path"]), "rb") as url:
+            img_bytes = await url.read()
+
+        # 用落盘时保留的扩展名决定 multipart filename 与 Content-Type，
+        # 后缀未知时回落到通用 application/octet-stream，避免硬编码 image/png
+        # 与实际字节不一致而被服务端拒绝。
+        filename = Path(str(data["path"])).name
+        guessed_mime, _ = guess_type(filename)
+        mime_type = guessed_mime or "application/octet-stream"
+
+        try:
+            async with httpx.AsyncClient(timeout=self.api_timeout) as client:
+                login_data = await client.post(
+                    url=UPLOAD_URL,
+                    cookies=self.cookies_q,
+                    data={
+                        "name": str(data["name"]),
+                        "type": str(data["type"]),
+                        "suggest": str(data["suggest"]),
+                        "power": 1,
+                    },
+                    files={
+                        "file": (filename, img_bytes, mime_type),
+                    },
+                )
+        except TimeoutError:
+            logger.error("图片上传接口访问超时")
+            return False, "图片上传接口访问超时"
+        except Exception as e:
+            logger.error(f"投稿请求发送失败: {e}")
+            return False, f"投稿请求发送失败: {e}"
+        else:
+            if login_data.status_code == 200:
+                resp_json = login_data.json()
+                msg = f"响应码:{resp_json['code']}\n状态:{resp_json['msg']}"
+                if str(resp_json.get("code")) == "20000":
+                    return True, msg
+                return False, msg
+            logger.warning(
+                f"兽云祭上传接口请求失败\nHTTP响应码:{login_data.status_code}"
+            )
+            return False, f"投稿请求异常{login_data}"
+
 
 syj = Fox()
 """兽云祭基础实现"""
@@ -499,5 +562,5 @@ syj = Fox()
 account_system = Account_System()
 """账户管理系统实现"""
 
-image_upload = Image_Upload()
+I_U_D_P = Image_Upload_Data_Process()
 """图片上传落盘实现（持有跨调用共享的 asyncio.Lock，必须以单例使用）"""
